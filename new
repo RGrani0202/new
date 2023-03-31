@@ -1,0 +1,60 @@
+@RestController
+public class Controller {
+
+    @Autowired
+    private Environment env;
+
+    @GetMapping("/excel-to-pdf")
+    public void convertExcelToPdf(HttpServletResponse response)  throws IOException {
+        List<List<String>> data=new ArrayList<>();
+        try {
+            File file=new File("C:\\Users\\sourav.k\\Documents\\EmployeeExcel.xlsx");
+            Workbook workbook=WorkbookFactory.create(file);
+            org.apache.poi.ss.usermodel.Sheet sheet=workbook.getSheetAt(0);
+            Iterator<Row> rowIterator= sheet.rowIterator();
+
+            while(rowIterator.hasNext()) {
+                Row row=rowIterator.next();
+                Iterator <Cell> cellIterator=row.cellIterator();
+                List<String> rowData=new ArrayList<>();
+                while(cellIterator.hasNext()) {
+                    Cell cell=cellIterator.next();
+                    rowData.add(cell.toString());
+                }
+                data.add(rowData);
+            }    
+        }
+        catch(IOException e) {
+            e.printStackTrace();
+        }
+         String fileName="C:\\Users\\sourav.k\\Documents\\data.pdf";
+            Document document=new Document();
+            try {
+                PdfWriter.getInstance(document, new FileOutputStream(fileName));
+                document.open();
+                PdfPTable table=new PdfPTable(data.get(0).size());
+                data.stream().forEach(row->{
+                    row.stream().forEach(cell->{
+                        table.addCell(cell);
+                    });
+                });
+                document.add(table);
+                document.close();
+                System.out.println("Data written to " + fileName + " successfully");
+            }
+            catch(Exception e) {
+                String errorMessage=env.getProperty("EXCEL_TO_PDF_ERROR.message");
+                throw new ExcelToPdfException(errorMessage,e);
+            }
+            response.setContentType(fileName);
+            response.setHeader("Content-Disposition", fileName);
+
+    }
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+      @ExceptionHandler(ExcelToPdfException.class) 
+      public ErrorResponse handleExcelToPdfException(ExcelToPdfException ex) {
+          String errorCode="EXCEL_TO_PDF_ERROR";
+          String errorMessage=env.getProperty(errorCode + ".message");
+          return new ErrorResponse(errorCode,errorMessage);
+      }
+  }
